@@ -426,9 +426,3 @@ Events.SubscribeRemote(NetworkedSound.EventMap.DurationResponse, function (pPlay
 
     NetworkedSound.CacheDuration(oNetworkedSound:GetPath(), fDuration)
 end)
-
---[[ Timer.SetTimeout(function ()
-    NetworkedSound.CacheDuration("package://networked-sounds/Client/test.mp3", 221.67)
-    local eSound = NetworkedSound(Vector(), "package://networked-sounds/Client/test.mp3", true, true, SoundType.SFX, 1, 1, nil, nil, nil, nil, nil, false)
-    eSound:Play()
-end, 1000) ]]

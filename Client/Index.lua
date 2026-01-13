@@ -100,17 +100,19 @@ local function callNativeMethod(iSoundID, sMethodName, ...)
 end
 
 Events.SubscribeRemote(NetworkedSound.EventMap.DurationRequest, function (iSoundID)
-    local oNetworkedSound = NetworkedSound.GetByID(iSoundID)
-    if not oNetworkedSound then return end
-    ---@cast oNetworkedSound NetworkedSound
+    Timer.SetTimeout(function () 
+        local oNetworkedSound = NetworkedSound.GetByID(iSoundID)
+        if not oNetworkedSound then return end
+        ---@cast oNetworkedSound NetworkedSound
 
-    local eSoundInstance = oNetworkedSound:GetSoundInstance()
-    if not eSoundInstance then return end
+        local eSoundInstance = oNetworkedSound:GetSoundInstance()
+        if not eSoundInstance then return end
 
-    -- Reduce to 2 decimal places
-    local fDuration = eSoundInstance:GetDuration()
-    local fSimplified = math.floor(fDuration * 100) / 100
-    Events.CallRemote(NetworkedSound.EventMap.DurationResponse, iSoundID, fSimplified)
+        -- Reduce to 2 decimal places
+        local fDuration = eSoundInstance:GetDuration()
+        local fSimplified = math.floor(fDuration * 100) / 100
+        Events.CallRemote(NetworkedSound.EventMap.DurationResponse, iSoundID, fSimplified)
+    end, 0)
 end)
 
 Events.SubscribeRemote(NetworkedSound.EventMap.PlaySound, function (iSoundID, fStartTime)

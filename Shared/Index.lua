@@ -142,3 +142,5 @@ end
 function NetworkedSound:GetAttachedTo()
     return self:GetValue("attached_to", nil)
 end
+
+Package.Export("NetworkedSound", NetworkedSound)

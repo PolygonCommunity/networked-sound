@@ -140,7 +140,7 @@ function NetworkedSound:FadeIn(fFadeInDuration, fFadeVolumeLevel, fStartTime)
     self:SetValue("is_playing", true)
     self:SetValue("play_offset", fStartTime or 0)
 
-    -- todo: start auto destroy timer?
+    self:StartAutoDestroyTimer()
 end
 
 -- `🔹 Server`<br>
@@ -254,3 +254,10 @@ end
 function NetworkedSound:GetAutoDestroyTimer()
     return self:GetValue("auto_destroy_timer")
 end
+
+NetworkedSound.ClassSubscribe("ReplicatedPlayerChange", function (self, pPlayer, bAdded)
+    if not bAdded then return end
+    if not self:GetQueryPlayer() then
+        self:AssignQueryPlayer()
+    end
+end)

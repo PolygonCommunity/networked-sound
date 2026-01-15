@@ -217,6 +217,8 @@ end
 -- `🔹 Server`<br>
 -- Starts the auto destroy timer
 function NetworkedSound:StartAutoDestroyTimer()
+    if self:GetLoopMode() == SoundLoopMode.Forever then return end
+
     local fDuration = self:GetDuration()
     if not fDuration then return end
 

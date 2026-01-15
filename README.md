@@ -4,13 +4,13 @@
 
 ## ✨ Features
 
-- **Server-side Sounds** - Control sounds from the server
-- **1:1 API** - Exact same API as the native clientside [Sound class](https://docs.nanos-world.com/docs/next/scripting-reference/classes/sound)
-- **Auto Duration Query** - Automatically queries duration from clients and caches it
-- **Time Sync** - Late-joining players hear sounds at the correct position
-- **Dimension Support** - Sounds replicate only to players in the same dimension
-- **Attachment System** - Attach sounds to entities
-- **Lua Documentation** - Fully documented with LuaLS annotations
+- Spawn and control sounds from the server
+- Exact same API as the native clientside [Sound class](https://docs.nanos-world.com/docs/next/scripting-reference/classes/sound)
+- Automatically queries duration from clients and caches it
+- Late-joining players hear sounds at the correct position
+- Sounds replicate only to players in the same dimension
+- Attach sounds to entities
+- Fully documented with LuaLS annotations
 
 ## 📦 Installation
 

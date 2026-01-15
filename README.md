@@ -16,7 +16,7 @@
 
 1. Download the package
 2. Place it in your server's `Packages/` directory
-3. Add `networked-sounds` to your server configuration
+3. Add `networked-sound` to your server configuration
 
 ## 🚀 Usage
 ```lua

@@ -1,9 +1,7 @@
 name: Publish to Nanos World Store
 
 on:
-  push:
-    tags:
-      - 'v*'  # Publishes when you push a version tag
+  push:  # Runs on every push
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
@@ -12,7 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: nanos-world/store-action@v1
+      - uses: olivatooo/nanos-world-store-action@main
         with:
           NANOS_PERSONAL_ACCESS_TOKEN: ${{ secrets.NANOS_STORE_TOKEN }}
-          NANOS_PACKAGE_NAME: 'networked-sound'
+          NANOS_PACKAGE_NAME: 'networked-sound'  # Replace with your package name
+          VERBOSE: 'true'

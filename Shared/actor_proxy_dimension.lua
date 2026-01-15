@@ -87,7 +87,7 @@ if Server then
             eActorProxy:AddReplicatedPlayer(pPlayer)
         end
     end
-    Player.Subscribe("Spawn", playerSpawn)
+    Player.Subscribe("Ready", playerSpawn)
 
     local function playerDimensionChange(pPlayer, iOldDimension, iNewDimension)
         -- Remove from old dimension actors

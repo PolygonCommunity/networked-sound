@@ -82,6 +82,15 @@ else
     ---@param eActor Entity<Actor>
     function ActorProxy:SetActorInstance(eActor)
         self:SetValue("actor_instance", eActor)
+
+        -- Apply pending changes
+        local tPendingChanges = self:GetValue("pending_changes")
+        if tPendingChanges then
+            for sKey, xValue in pairs(tPendingChanges) do
+                self.ClassCall("ValueChange", self, sKey, xValue)
+            end
+            self:SetValue("pending_changes", nil)
+        end
     end
 
     -- `🔸 Client`<br>
@@ -91,7 +100,7 @@ else
         return self:GetValue("actor_instance")
     end
 
-    ---@alias ValueChangeData {set: string, clear?: string, skip_if?: table<string>, requires?: table<string>}
+    ---@alias ValueChangeData {set: string | fun(self: ActorProxy, eInstance: Actor, ...), clear?: string | fun(self: ActorProxy, eInstance: Actor), skip_if?: table<string>, requires?: table<string>}
 
     local tValueChangeMap = {
         ["location"] = {  set = "SetLocation", skip_if = { "attachment" } },
@@ -107,6 +116,7 @@ else
     ---@param tData ValueChangeData
     function ActorProxy:AddValueChangeMap(sKey, tData)
         tValueChangeMap[sKey] = tData
+        Console.Debug("Added ValueChangeMap for ActorProxy `%s`: %s", self:GetClassName(), sKey)
     end
 
     -- `🔸 Client`<br>
@@ -185,13 +195,25 @@ else
     ---@param sKey string
     ---@param xValue any
     local function valueChange(self, sKey, xValue)
-        local eInstance = self:GetActorInstance()
-        if not eInstance then return end
-
         local tMethod = tValueChangeMap[sKey]
-        if not tMethod then return end
+        if not tMethod then
+            applyDeferredChanges(self, sKey)
+            return
+        end
 
-        if xValue and tMethod.set then
+        local eInstance = self:GetActorInstance()
+        if not eInstance then
+            local tPendingChanges = self:GetValue("pending_changes") or {}
+            tPendingChanges[sKey] = xValue
+            self:SetValue("pending_changes", tPendingChanges)
+            return
+        end
+
+        if eInstance and not eInstance:IsValid() then
+            return
+        end
+
+        if xValue ~= nil and tMethod.set then
             -- Check skip conditions
             if tMethod.skip_if and shouldSkip(self, tMethod.skip_if) then
                 return
@@ -205,18 +227,33 @@ else
             local bUnpack = shouldUnpack(xValue)
             if bUnpack then
                 Console.Debug("Calling Set method with unpacked values: %s with values: %s", tMethod.set, NanosTable.Dump(xValue))
-                eInstance[tMethod.set](eInstance, table.unpack(xValue))
+                if type(tMethod.set) == "function" then
+                    tMethod.set(self, eInstance, table.unpack(xValue))
+                else
+                    eInstance[tMethod.set](eInstance, table.unpack(xValue))
+                end
             else
                 Console.Debug("Calling Set method: %s with value: %s", tMethod.set, tostring(xValue))
-                eInstance[tMethod.set](eInstance, xValue)
+
+                if type(tMethod.set) == "function" then
+                    tMethod.set(self, eInstance, xValue)
+                else
+                    eInstance[tMethod.set](eInstance, xValue)
+                end
             end
 
             applyDeferredChanges(self, sKey)
             return
         end
 
-        if not xValue and tMethod.clear then
-            eInstance[tMethod.clear](eInstance)
+        if xValue == nil and tMethod.clear then
+            Console.Debug("Calling Clear method: %s", tMethod.clear)
+            if type(tMethod.clear) == "function" then
+                tMethod.clear(self, eInstance)
+            else
+                eInstance[tMethod.clear](eInstance)
+            end
+
         end
     end
 

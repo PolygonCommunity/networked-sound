@@ -7,7 +7,7 @@
 - Spawn and control sounds from the server
 - Exact same API as the native clientside [Sound class](https://docs.nanos-world.com/docs/next/scripting-reference/classes/sound)
 - Automatically queries duration from clients and caches it
-- Late-joining players hear sounds at the correct position
+- Late-joining players hear sounds at their current playback position
 - Sounds replicate only to players in the same dimension
 - Attach sounds to entities
 - Fully documented with LuaLS annotations

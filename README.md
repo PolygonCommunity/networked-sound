@@ -1,6 +1,6 @@
-# 🔊 Networked Sounds
+# 🔊 Networked Sound
 
-`Networked Sounds` is a nanos world package allowing to spawn and control Sound entities from serverside with full client sync
+`Networked Sound` is a nanos world package allowing to spawn and control Sound entities from serverside with full client sync
 
 ## ✨ Features
 

@@ -13,6 +13,7 @@ function NetworkedSound.CacheDuration(sAsset, fDuration)
     end
 
     NetworkedSound.AssetDurationCache[sAsset] = fDuration
+    Console.Log("[NetworkedSound] Cached duration of asset '" .. sAsset .. "' as " .. tostring(fDuration) .. " seconds.")
 end
 
 -- `🔹 Server`<br>
@@ -24,22 +25,19 @@ function NetworkedSound.GetCachedDuration(sAsset)
 end
 
 ---@param pPlayer Player
----@param iSoundID integer
+---@param eNetworkedSound NetworkedSound
 ---@param fDuration number
-Events.SubscribeRemote(NetworkedSound.EventMap.DurationResponse, function (pPlayer, iSoundID, fDuration)
-    if type(iSoundID) ~= "number" or type(fDuration) ~= "number" then return end
+Events.SubscribeRemote(NetworkedSound.EventMap.DurationResponse, function (pPlayer, eNetworkedSound, fDuration)
+    if not eNetworkedSound or not eNetworkedSound:IsValid() or not eNetworkedSound:IsA(NetworkedSound) then return end
+    if type(fDuration) ~= "number" then return end
+    if eNetworkedSound:GetQueryPlayer() ~= pPlayer then return end
 
-    local oNetworkedSound = NetworkedSound.GetByID(iSoundID)
-    if not oNetworkedSound then return end
-    ---@cast oNetworkedSound NetworkedSound
+    eNetworkedSound:SetDuration(fDuration)
 
-    if oNetworkedSound:GetQueryPlayer() ~= pPlayer then return end
-
-    oNetworkedSound:SetDuration(fDuration)
-
-    if oNetworkedSound:IsPlaying() then
-        oNetworkedSound:StartAutoDestroyTimer()
+    if eNetworkedSound:IsPlaying() then
+        eNetworkedSound:UpdateLifeSpan()
     end
 
-    NetworkedSound.CacheDuration(oNetworkedSound:GetPath(), fDuration)
+    NetworkedSound.CacheDuration(eNetworkedSound:GetPath(), fDuration)
+    eNetworkedSound:SetValue("query_player", nil)
 end)

@@ -5,7 +5,7 @@
     # contributors
     author =                "NegativeName"
     # version
-    version =               "0.0.1"
+    version =               "0.0.2"
 
 # script configurations
 [script]
@@ -19,7 +19,7 @@
     compatibility_version = "1.101"
     # packages requirements
     packages_requirements = [
-                            "classlib",
+                            
     ]
     # asset packs requirements
     assets_requirements = [

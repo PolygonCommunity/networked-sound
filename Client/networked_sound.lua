@@ -2,28 +2,27 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
 ---@param self NetworkedSound
-NetworkedSound.ClassSubscribe("Spawn", function (self)
-    Timer.SetTimeout(function ()
-        local eSoundInstance = Sound(
-            self:GetLocation(),
-            self:GetPath(),
-            self:Is2D(),
-            self:IsAutoDestroy(),
-            self:GetSoundType(),
-            self:GetVolume(),
-            self:GetPitch(),
-            self:GetInnerRadius(),
-            self:GetFalloffDistance(),
-            self:GetAttenuationFunction(),
-            self:KeepPlayingWhenSilent(),
-            self:GetLoopMode(),
-            self:IsAutoPlay()
-        )
+NetworkedSound.Subscribe("Spawn", function (self)
+    local eSoundInstance = Sound(
+        self:GetLocation(),
+        self:GetPath(),
+        self:Is2D(),
+        self:IsAutoDestroy(),
+        self:GetSoundType(),
+        self:GetVolume(),
+        self:GetPitch(),
+        self:GetInnerRadius(),
+        self:GetFalloffDistance(),
+        self:GetAttenuationFunction(),
+        self:KeepPlayingWhenSilent(),
+        self:GetLoopMode(),
+        self:IsAutoPlay()
+    )
 
-        eSoundInstance:SetLowPassFilter(self:GetLowPassFilter())
+    eSoundInstance:SetLowPassFilter(self:GetLowPassFilter())
 
-        self:SetActorInstance(eSoundInstance)
-    end, 0)
+    eSoundInstance:AttachTo(self, AttachmentRule.SnapToTarget)
+    self:SetActorInstance(eSoundInstance)
 
     self:AddValueChangeMap("play", {
         ---@param eInstance Sound
@@ -79,19 +78,23 @@ NetworkedSound.ClassSubscribe("Spawn", function (self)
     self:AddValueChangeMap("paused", { set = "SetPaused" })
 end)
 
-Events.SubscribeRemote(NetworkedSound.EventMap.DurationRequest, function (iSoundID)
-    Timer.SetTimeout(function () 
-        local oNetworkedSound = NetworkedSound.GetByID(iSoundID)
-        if not oNetworkedSound then return end
-        ---@cast oNetworkedSound NetworkedSound
+---@param eNetworkedSound NetworkedSound
+local function durationRequest(eNetworkedSound)
+    local eSoundInstance = eNetworkedSound:GetValue("actor_instance")
+    if not eSoundInstance then return end
+    ---@cast eSoundInstance Sound
 
-        local eSoundInstance = oNetworkedSound:GetValue("actor_instance")
-        if not eSoundInstance then return end
-        ---@cast eSoundInstance Sound
+    local fDuration = eSoundInstance:GetDuration()
+    if fDuration == 0 then
+        Timer.Bind(
+            Timer.SetTimeout(function ()
+                durationRequest(eNetworkedSound)
+            end, 100),
+            eNetworkedSound
+        )
+        return
+    end
 
-        -- Reduce to 2 decimal places
-        local fDuration = eSoundInstance:GetDuration()
-        local fSimplified = math.floor(fDuration * 100) / 100
-        Events.CallRemote(NetworkedSound.EventMap.DurationResponse, iSoundID, fSimplified)
-    end, 0)
-end)
+    Events.CallRemote(NetworkedSound.EventMap.DurationResponse, eNetworkedSound, math.floor(fDuration * 100) / 100)
+end
+Events.SubscribeRemote(NetworkedSound.EventMap.DurationRequest, durationRequest)

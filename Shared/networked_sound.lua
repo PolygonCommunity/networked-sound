@@ -1,7 +1,7 @@
 
----@class NetworkedSound : ActorProxy
+---@class NetworkedSound : StaticMesh
 ---@overload fun(tLocation: Vector, sAsset: string, bIs2DSound?: boolean, bAutoDestroy?: boolean, iSoundType?: SoundType, fVolume?: number, fPitch?: number, fInnerRadius?: number, fFalloffDistance?: number, iAttenuationFunction?: AttenuationFunction, bKeepPlayingWhenSilent?: boolean, iLoopMode?: SoundLoopMode, bAutoPlay?: boolean): NetworkedSound
-NetworkedSound = ActorProxy.Inherit("NetworkedSound", ClassLib.FL.ServerAuthority)
+NetworkedSound = StaticMesh.Inherit("NetworkedSound")
 NetworkedSound.AssetDurationCache = {}
 
 NetworkedSound.EventMap = {

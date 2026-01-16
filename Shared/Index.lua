@@ -7,7 +7,4 @@ Vector.One = Vector.One or Vector(1, 1, 1)
 Vector.Zero = Vector.Zero or Vector()
 Rotator.Zero = Rotator.Zero or Rotator()
 
-Package.Require("actor_proxy.lua")
-Package.Require("actor_proxy_dimension.lua")
-
 Package.Require("networked_sound.lua")

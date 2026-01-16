@@ -2,11 +2,7 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
 function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy, iSoundType, fVolume, fPitch, fInnerRadius, fFalloffDistance, iAttenuationFunction, bKeepPlayingWhenSilent, iLoopMode, bAutoPlay)
-    ActorProxy.Constructor(self)
-
-    if tLocation ~= Vector.Zero then
-        self:SetLocation(tLocation)
-    end
+    self.Super:Constructor(tLocation, Rotator(), "nanos-world::SM_None")
 
     self:SetValue("path", sAsset, true)
     self:SetValue("is_2d_sound", bIs2DSound, true)
@@ -33,37 +29,10 @@ function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy,
     Timer.SetTimeout(self.AssignQueryPlayer, 0, self)
 end
 
-function NetworkedSound:Destructor()
-    self:ClearAutoDestroyTimer()
-    ActorProxy.Destructor(self)
-end
-
--- `🔹 Server`<br>
--- Finds and assigns a query player for duration requests
-function NetworkedSound:AssignQueryPlayer()
-    local tPlayers, bAll = self:GetReplicatedPlayers()
-    local pQueryPlayer = nil
-    if bAll then
-        local pAnyPlayer = Player.GetAll()[1]
-        pQueryPlayer = pAnyPlayer
-    else
-        pQueryPlayer = tPlayers[1]
-    end
-
-    if not pQueryPlayer then return end
-    self:SetValue("query_player", pQueryPlayer)
-
-    if not NetworkedSound.AssetDurationCache[self:GetPath()] then
-        Events.CallRemote(NetworkedSound.EventMap.DurationRequest, pQueryPlayer, self:GetID())
-    end
-end
-
--- `🔹 Server`<br>
--- Returns the current query player
----@return Player?
-function NetworkedSound:GetQueryPlayer()
-    return self:GetValue("query_player")
-end
+---@param self NetworkedSound
+NetworkedSound.Subscribe("Destroy", function (self)
+    Console.Log("[NetworkedSound] Destroyed sound instance for asset '" .. self:GetPath() .. "'.")
+end)
 
 -- `🔹 Server`<br>
 -- Sets the volume of the sound
@@ -124,7 +93,7 @@ function NetworkedSound:Play(fStartTime)
     self:SetValue("play", fStartTime or 0, true)
     self:SetValue("is_playing", true)
     self:SetValue("play_offset", fStartTime or 0)
-    self:StartAutoDestroyTimer()
+    self:UpdateLifeSpan()
 end
 
 -- `🔹 Server`<br>
@@ -139,8 +108,7 @@ function NetworkedSound:FadeIn(fFadeInDuration, fFadeVolumeLevel, fStartTime)
     self:SetValue("fade_in", { fFadeInDuration, fFadeVolumeLevel or 1, fStartTime or 0 }, true)
     self:SetValue("is_playing", true)
     self:SetValue("play_offset", fStartTime or 0)
-
-    self:StartAutoDestroyTimer()
+    self:UpdateLifeSpan()
 end
 
 -- `🔹 Server`<br>
@@ -154,10 +122,7 @@ function NetworkedSound:FadeOut(fFadeOutDuration, fFadeVolumeLevel, bDestroyAfte
     self:SetValue("fade_out", { fFadeOutDuration, fFadeVolumeLevel or 0 }, true)
 
     if bDestroyAfterFadeout then
-        Timer.SetTimeout(function ()
-            self:SetValue("auto_destroyed", true, true)
-            self:Destroy()
-        end, fFadeOutDuration * 1000)
+        self:SetLifeSpan(fFadeOutDuration)
     end
 end
 
@@ -167,23 +132,16 @@ end
 function NetworkedSound:SetPaused(bPause)
     if type(bPause) == "nil" then bPause = true end
 
-    local iAutoDestroyTimer = self:GetAutoDestroyTimer()
-    if iAutoDestroyTimer then
-        if bPause then
-            Timer.Pause(iAutoDestroyTimer)
-        else
-            Timer.Resume(iAutoDestroyTimer)
-        end
-    end
-
     if bPause then
         local fStartTime = self:GetStartTime() or 0
         local fElapsedTime = (Server.GetTime() - fStartTime) / 1000
         self:SetValue("paused_offset", fElapsedTime)
+        self:SetLifeSpan(0)
     else
         local fPausedOffset = self:GetValue("paused_offset", 0)
         self:SetValue("start_time", Server.GetTime() - (fPausedOffset * 1000), true)
         self:SetValue("paused_offset", nil)
+        self:UpdateLifeSpan()
     end
 
     self:SetValue("paused", bPause, true)
@@ -193,7 +151,7 @@ end
 -- `🔹 Server`<br>
 -- Stops the sound
 function NetworkedSound:Stop()
-    self:ClearAutoDestroyTimer()
+    self:SetLifeSpan(0)
     self:SetValue("is_playing", false)
     clearPlayValues(self)
 end
@@ -215,51 +173,18 @@ function NetworkedSound:SetDuration(fDuration)
 end
 
 -- `🔹 Server`<br>
--- Starts the auto destroy timer
-function NetworkedSound:StartAutoDestroyTimer()
-    if self:GetLoopMode() == SoundLoopMode.Forever then return end
-
+-- Updates the life span of the sound
+function NetworkedSound:UpdateLifeSpan()
     local fDuration = self:GetDuration()
     if not fDuration then return end
-
-    self:ClearAutoDestroyTimer()
 
     local fPlayStartTime = self:GetStartTime()
     if not fPlayStartTime then return end
 
-    if not self:IsAutoDestroy() then return end
-
     local fStartTimeOffset = self:GetValue("play_offset", 0)
     fDuration = fDuration - fStartTimeOffset
 
-    local fRemainingTime = fDuration * 1000 - (Server.GetTime() - fPlayStartTime)
-    local iAutoDestroyTimer = Timer.SetTimeout(function ()
-        self:SetValue("auto_destroyed", true, true)
-        self:Destroy()
-    end, fRemainingTime)
-    self:SetValue("auto_destroy_timer", iAutoDestroyTimer)
+    local fElapsedTime = (Server.GetTime() - fPlayStartTime) / 1000
+    local fRemainingTime = fDuration - fElapsedTime
+    self:SetLifeSpan(fRemainingTime)
 end
-
--- `🔹 Server`<br>
--- Clears the auto destroy timer
-function NetworkedSound:ClearAutoDestroyTimer()
-    local iAutoDestroyTimer = self:GetAutoDestroyTimer()
-    if not iAutoDestroyTimer then return end
-
-    Timer.ClearTimeout(iAutoDestroyTimer)
-    self:SetValue("auto_destroy_timer", nil)
-end
-
--- `🔹 Server`<br>
--- Returns the auto destroy timer ID
----@return integer?
-function NetworkedSound:GetAutoDestroyTimer()
-    return self:GetValue("auto_destroy_timer")
-end
-
-NetworkedSound.ClassSubscribe("ReplicatedPlayerChange", function (self, pPlayer, bAdded)
-    if not bAdded then return end
-    if not self:GetQueryPlayer() then
-        self:AssignQueryPlayer()
-    end
-end)

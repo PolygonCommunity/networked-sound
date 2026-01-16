@@ -2,3 +2,4 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
 Package.Require("networked_sound.lua")
+Package.Require("value_handler.lua")

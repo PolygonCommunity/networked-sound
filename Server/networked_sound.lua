@@ -175,6 +175,11 @@ end
 -- `🔹 Server`<br>
 -- Updates the life span of the sound
 function NetworkedSound:UpdateLifeSpan()
+    if self:GetLoopMode() == SoundLoopMode.Forever then
+        self:SetLifeSpan(0)
+        return
+    end
+
     local fDuration = self:GetDuration()
     if not fDuration then return end
 

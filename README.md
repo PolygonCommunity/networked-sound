@@ -12,9 +12,6 @@
 - Attach sounds to entities
 - Fully documented with LuaLS annotations
 
-## 📋 Requirements
-This package requires the `ClassLib` package to be installed on your server. You can find it [here](https://github.com/Timmy-the-nobody/ClassLib).
-
 ## 📦 Installation
 
 1. Download the package

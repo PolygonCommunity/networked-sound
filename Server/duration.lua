@@ -13,7 +13,7 @@ function NetworkedSound.CacheDuration(sAsset, fDuration)
     end
 
     NetworkedSound.AssetDurationCache[sAsset] = fDuration
-    Console.Log("[NetworkedSound] Cached duration of asset '" .. sAsset .. "' as " .. tostring(fDuration) .. " seconds.")
+    Console.Debug("[NetworkedSound] Cached duration of asset '" .. sAsset .. "' as " .. tostring(fDuration) .. " seconds.")
 end
 
 -- `🔹 Server`<br>

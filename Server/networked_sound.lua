@@ -31,7 +31,7 @@ end
 
 ---@param self NetworkedSound
 NetworkedSound.Subscribe("Destroy", function (self)
-    Console.Log("[NetworkedSound] Destroyed sound instance for asset '" .. self:GetPath() .. "'.")
+    Console.Debug("[NetworkedSound] Destroyed sound instance for asset '" .. self:GetPath() .. "'.")
 end)
 
 -- `🔹 Server`<br>

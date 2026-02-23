@@ -93,6 +93,8 @@ end
 ---@param sKey string
 ---@param xValue any
 function ValueChange(self, sKey, xValue)
+    if not self or not self:IsValid() then return end
+
     local tMethod = tValueChangeMap[sKey]
     if not tMethod then
         applyDeferredChanges(self, sKey)
@@ -100,14 +102,10 @@ function ValueChange(self, sKey, xValue)
     end
 
     local eInstance = self:GetActorInstance()
-    if not eInstance then
+    if not eInstance or not eInstance:IsValid() then
         local tPendingChanges = self:GetValue("pending_changes") or {}
         tPendingChanges[sKey] = xValue
         self:SetValue("pending_changes", tPendingChanges)
-        return
-    end
-
-    if not eInstance or not eInstance:IsValid() then
         return
     end
 

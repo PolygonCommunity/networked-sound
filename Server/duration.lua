@@ -37,6 +37,10 @@ Events.SubscribeRemote(NetworkedSound.EventMap.DurationResponse, function (pPlay
     if eNetworkedSound:IsPlaying() then
         eNetworkedSound:UpdateLifeSpan()
     end
+    
+    if eNetworkedSound:IsAutoPlay() and not eNetworkedSound:IsPlaying() then
+        eNetworkedSound:Play()
+    end
 
     NetworkedSound.CacheDuration(eNetworkedSound:GetPath(), fDuration)
     eNetworkedSound:SetValue("query_player", nil)

@@ -158,7 +158,7 @@ end
 ---@param self NetworkedSound
 local function destroyInstance(self)
     local eInstance = self:GetActorInstance()
-    if not eInstance then return end
+    if not eInstance or not eInstance:IsValid() then return end
 
     eInstance:Destroy()
 end

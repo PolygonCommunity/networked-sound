@@ -16,7 +16,7 @@ NetworkedSound.Subscribe("Spawn", function (self)
         self:GetAttenuationFunction(),
         self:KeepPlayingWhenSilent(),
         self:GetLoopMode(),
-        false
+        self:IsAutoPlay()
     )
 
     eSoundInstance:SetLowPassFilter(self:GetLowPassFilter())

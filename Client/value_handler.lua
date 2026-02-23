@@ -107,7 +107,7 @@ function ValueChange(self, sKey, xValue)
         return
     end
 
-    if eInstance and not eInstance:IsValid() then
+    if not eInstance or not eInstance:IsValid() then
         return
     end
 

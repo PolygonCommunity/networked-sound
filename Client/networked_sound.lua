@@ -27,7 +27,7 @@ NetworkedSound.Subscribe("Spawn", function (self)
     self:AddValueChangeMap("play", {
         ---@param eInstance Sound
         ---@param fStartOffset number
-        set = function (_, eInstance, fStartOffset)
+        set = function (self, eInstance, fStartOffset)
             local fStartTime = self:GetStartTime() or 0
 
             local fOffset = (Client.GetTime() - fStartTime) / 1000 + fStartOffset
@@ -35,7 +35,7 @@ NetworkedSound.Subscribe("Spawn", function (self)
         end,
 
         ---@param eInstance Sound
-        clear = function (_, eInstance)
+        clear = function (self, eInstance)
             eInstance:Stop()
         end,
         requires = { "start_time" }
@@ -46,7 +46,7 @@ NetworkedSound.Subscribe("Spawn", function (self)
         ---@param fFadeInDuration number
         ---@param fFadeVolumeLevel number
         ---@param fStartOffset number
-        set = function (_, eInstance, fFadeInDuration, fFadeVolumeLevel, fStartOffset)
+        set = function (self, eInstance, fFadeInDuration, fFadeVolumeLevel, fStartOffset)
             local fStartTime = self:GetStartTime() or 0
 
             local fOffset = (Client.GetTime() - fStartTime) / 1000 + fStartOffset

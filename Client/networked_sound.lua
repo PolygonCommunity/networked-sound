@@ -7,7 +7,7 @@ NetworkedSound.Subscribe("Spawn", function (self)
         self:GetLocation(),
         self:GetPath(),
         self:Is2D(),
-        self:IsAutoDestroy(),
+        false,
         self:GetSoundType(),
         self:GetVolume(),
         self:GetPitch(),

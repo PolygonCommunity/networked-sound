@@ -2,7 +2,7 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
 function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy, iSoundType, fVolume, fPitch, fInnerRadius, fFalloffDistance, iAttenuationFunction, bKeepPlayingWhenSilent, iLoopMode, bAutoPlay)
-    self.Super:Constructor(tLocation, Rotator(), "nanos-world::SM_None")
+    self.Super:Constructor(tLocation, Rotator(), "nanos-world::SM_None", CollisionType.NoCollision)
 
     self:SetValue("path", sAsset, true)
     self:SetValue("is_2d_sound", bIs2DSound, true)
@@ -24,6 +24,8 @@ function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy,
     local fCachedDuration = NetworkedSound.GetCachedDuration(sAsset)
     if fCachedDuration then
         self:SetDuration(fCachedDuration)
+    else
+        self:SetLifeSpan(20) -- default life span while waiting for duration response
     end
 
     Timer.SetTimeout(self.AssignQueryPlayer, 0, self)

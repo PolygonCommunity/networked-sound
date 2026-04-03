@@ -5,7 +5,7 @@
     # contributors
     author =                "NegativeName"
     # version
-    version =               "0.0.5"
+    version =               "0.0.6"
 
 # script configurations
 [script]
@@ -19,13 +19,13 @@
     compatibility_version = "1.101"
     # packages requirements
     packages_requirements = [
-                            
+
     ]
     # asset packs requirements
     assets_requirements = [
-                            
+
     ]
     # compatible game modes
     compatible_game_modes = [
-                            
+
     ]

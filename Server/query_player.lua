@@ -10,19 +10,31 @@ NetworkedSound.Subscribe("Destroy", function (self)
 end)
 
 -- `🔹 Server`<br>
+---@param self NetworkedSound
+local function addPendingSound(self)
+    local iDimension = self:GetDimension()
+    tPendingSounds[iDimension] = tPendingSounds[iDimension] or {}
+    tPendingSounds[iDimension][self] = self
+end
+
+-- `🔹 Server`<br>
 -- Finds and assigns a query player for duration requests
 function NetworkedSound:AssignQueryPlayer()
     local iDimension = self:GetDimension()
     local tPlayers = tPlayerDimensionMap[iDimension]
     if not tPlayers then
-        tPendingSounds[iDimension] = tPendingSounds[iDimension] or {}
-        tPendingSounds[iDimension][self] = self
+        addPendingSound(self)
         return
     end
 
     local tPlayerList = {}
     for _, pPlayer in pairs(tPlayers) do
         table.insert(tPlayerList, pPlayer)
+    end
+
+    if #tPlayerList == 0 then
+        addPendingSound(self)
+        return
     end
 
     local pQueryPlayer = tPlayerList[math.random(1, #tPlayerList)]

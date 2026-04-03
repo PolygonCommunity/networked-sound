@@ -95,6 +95,10 @@ local function durationRequest(eNetworkedSound)
         return
     end
 
-    Events.CallRemote(NetworkedSound.EventMap.DurationResponse, eNetworkedSound, math.floor(fDuration * 100) / 100)
+    Events.CallRemote(
+        NetworkedSound.EventMap.DurationResponse,
+        eNetworkedSound,
+        math.floor(fDuration * 100) / 100
+    )
 end
 Events.SubscribeRemote(NetworkedSound.EventMap.DurationRequest, durationRequest)

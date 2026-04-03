@@ -17,15 +17,13 @@ function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy,
     self:SetValue("loop_mode", iLoopMode, true)
     self:SetValue("auto_play", bAutoPlay, true)
 
-    if type(bAutoPlay) == "nil" or bAutoPlay then
-        self:Play()
-    end
-
     local fCachedDuration = NetworkedSound.GetCachedDuration(sAsset)
     if fCachedDuration then
         self:SetDuration(fCachedDuration)
-    else
-        self:SetLifeSpan(20) -- default life span while waiting for duration response
+    end
+
+    if type(bAutoPlay) == "nil" or bAutoPlay then
+        self:Play()
     end
 
     Timer.SetTimeout(self.AssignQueryPlayer, 0, self)
@@ -182,7 +180,7 @@ function NetworkedSound:UpdateLifeSpan()
         return
     end
 
-    local fDuration = self:GetDuration()
+    local fDuration = self:GetDuration() or 20
     if not fDuration then return end
 
     local fPlayStartTime = self:GetStartTime()

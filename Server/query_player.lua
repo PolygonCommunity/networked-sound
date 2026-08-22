@@ -1,102 +1,166 @@
-local tPlayerDimensionMap = {}
-local tPendingSounds = {}
+-- Copyright (C) 2026 NegativeName
+-- SPDX-License-Identifier: GPL-3.0-or-later
+
+---@type table<string, table<NetworkedSound, boolean>>
+local tWaitingSounds = {}
+
+---@type table<NetworkedSound, string>
+local tSoundAsset = {}
+
+---@type table<string, {sound: NetworkedSound, player: Player, timer: integer, tried: table<Player, boolean>, attempts: integer}>
+local tActiveQueries = {}
+
+local attemptQuery
+
+-- `🔹 Server`<br>
+---@param self NetworkedSound
+local function forgetSound(self)
+    local sAsset = tSoundAsset[self]
+    tSoundAsset[self] = nil
+    if not sAsset then return end
+
+    local tWaiting = tWaitingSounds[sAsset]
+    if not tWaiting then return end
+
+    tWaiting[self] = nil
+    if next(tWaiting) == nil then
+        tWaitingSounds[sAsset] = nil
+    end
+end
+
+-- `🔹 Server`<br>
+---@param sAsset string
+local function stopQuery(sAsset)
+    local tQuery = tActiveQueries[sAsset]
+    if not tQuery then return end
+
+    tActiveQueries[sAsset] = nil
+    if tQuery.timer then
+        Timer.ClearTimeout(tQuery.timer)
+    end
+end
+
+-- `🔹 Server`<br>
+---@param sAsset string
+---@param tTried table<Player, boolean>
+---@return NetworkedSound?, Player?
+local function pickQueryTarget(sAsset, tTried)
+    local tWaiting = tWaitingSounds[sAsset]
+    if not tWaiting then return nil, nil end
+
+    for eSound in pairs(tWaiting) do
+        if not eSound:IsValid() then
+            tWaiting[eSound] = nil
+            tSoundAsset[eSound] = nil
+        else
+            local pAuthority = eSound:GetNetworkAuthority()
+            if pAuthority and pAuthority:IsValid() and not tTried[pAuthority] then
+                return eSound, pAuthority
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+-- `🔹 Server`<br>
+---@param sAsset string
+---@param tTried table<Player, boolean>
+---@param iAttempts integer
+attemptQuery = function (sAsset, tTried, iAttempts)
+    stopQuery(sAsset)
+
+    if NetworkedSound.GetCachedDuration(sAsset) then return end
+
+    if iAttempts >= 3 then
+        Console.Warn("[NetworkedSound] No player answered the duration of asset '" .. sAsset .. "', keeping the fallback")
+        return
+    end
+
+    local eSound, pQueryPlayer = pickQueryTarget(sAsset, tTried)
+    if not eSound or not pQueryPlayer then return end
+
+    tTried[pQueryPlayer] = true
+
+    tActiveQueries[sAsset] = {
+        sound = eSound,
+        player = pQueryPlayer,
+        tried = tTried,
+        attempts = iAttempts + 1,
+        timer = Timer.SetTimeout(function ()
+            attemptQuery(sAsset, tTried, iAttempts + 1)
+        end, 5000),
+    }
+
+    Events.CallRemote(NetworkedSound.EventMap.DurationRequest, pQueryPlayer, Reliability.Reliable, eSound)
+end
+
+-- `🔹 Server`<br>
+-- Registers a sound to be queried for its duration, if the server doesn't have it cached yet
+function NetworkedSound:RequestDuration()
+    local sAsset = self:GetPath()
+    if not sAsset then return end
+    if NetworkedSound.GetCachedDuration(sAsset) then return end
+
+    tSoundAsset[self] = sAsset
+    tWaitingSounds[sAsset] = tWaitingSounds[sAsset] or {}
+    tWaitingSounds[sAsset][self] = true
+end
+
+-- `🔹 Server`<br>
+-- Returns the player currently asked for this sound asset duration
+---@return Player?
+function NetworkedSound:GetQueryPlayer()
+    local tQuery = tActiveQueries[self:GetPath()]
+    return tQuery and tQuery.player
+end
+
+-- `🔹 Server`<br>
+-- Returns whether this player and sound are the ones we asked
+---@param pPlayer Player
+---@return boolean
+function NetworkedSound:IsQueryAnswer(pPlayer)
+    local tQuery = tActiveQueries[self:GetPath()]
+    return tQuery ~= nil and tQuery.player == pPlayer and tQuery.sound == self
+end
+
+-- `🔹 Server`<br>
+---@param sAsset string
+---@param fDuration number
+function NetworkedSound.ResolveDuration(sAsset, fDuration)
+    stopQuery(sAsset)
+
+    local tWaiting = tWaitingSounds[sAsset]
+    tWaitingSounds[sAsset] = nil
+    if not tWaiting then return end
+
+    for eSound in pairs(tWaiting) do
+        tSoundAsset[eSound] = nil
+
+        if eSound:IsValid() then
+            eSound:SetDuration(fDuration)
+            eSound:UpdateLifeSpan()
+        end
+    end
+end
 
 ---@param self NetworkedSound
-NetworkedSound.Subscribe("Destroy", function (self)
-    local iDimension = self:GetDimension()
-    if tPendingSounds[iDimension] then
-        tPendingSounds[iDimension][self] = nil
+---@param pOldAuthority Player?
+---@param pNewAuthority Player?
+NetworkedSound.Subscribe("NetworkAuthorityChange", function (self, pOldAuthority, pNewAuthority)
+    local sAsset = tSoundAsset[self]
+    if not sAsset then return end
+
+    local tQuery = tActiveQueries[sAsset]
+
+    if tQuery and tQuery.sound == self and tQuery.player == pOldAuthority then
+        attemptQuery(sAsset, tQuery.tried, tQuery.attempts)
+        return
+    end
+
+    if not tQuery and pNewAuthority then
+        attemptQuery(sAsset, {}, 0)
     end
 end)
 
--- `🔹 Server`<br>
----@param self NetworkedSound
-local function addPendingSound(self)
-    local iDimension = self:GetDimension()
-    tPendingSounds[iDimension] = tPendingSounds[iDimension] or {}
-    tPendingSounds[iDimension][self] = self
-end
-
--- `🔹 Server`<br>
--- Finds and assigns a query player for duration requests
-function NetworkedSound:AssignQueryPlayer()
-    local iDimension = self:GetDimension()
-    local tPlayers = tPlayerDimensionMap[iDimension]
-    if not tPlayers then
-        addPendingSound(self)
-        return
-    end
-
-    local tPlayerList = {}
-    for _, pPlayer in pairs(tPlayers) do
-        table.insert(tPlayerList, pPlayer)
-    end
-
-    if #tPlayerList == 0 then
-        addPendingSound(self)
-        return
-    end
-
-    local pQueryPlayer = tPlayerList[math.random(1, #tPlayerList)]
-
-    if not pQueryPlayer then return end
-    self:SetValue("query_player", pQueryPlayer)
-
-    if not NetworkedSound.AssetDurationCache[self:GetPath()] then
-        Events.CallRemote(NetworkedSound.EventMap.DurationRequest, pQueryPlayer, self)
-    end
-
-    if tPendingSounds[iDimension] then
-        tPendingSounds[iDimension][self] = nil
-    end
-end
-
--- `🔹 Server`<br>
--- Returns the current query player
----@return Player?
-function NetworkedSound:GetQueryPlayer()
-    return self:GetValue("query_player")
-end
-
----@param pPlayer Player
-local function spawn(pPlayer)
-    local iDimension = pPlayer:GetDimension()
-    tPlayerDimensionMap[iDimension] = tPlayerDimensionMap[iDimension] or {}
-    tPlayerDimensionMap[iDimension][pPlayer] = pPlayer
-
-    if not tPendingSounds[iDimension] then return end
-    for _, eNetworkedSound in pairs(tPendingSounds[iDimension]) do
-        eNetworkedSound:AssignQueryPlayer()
-    end
-end
-Player.Subscribe("Ready", spawn)
-
----@param pPlayer Player
----@param iOldDimension integer
----@param iNewDimension integer
-local function dimensionChange(pPlayer, iOldDimension, iNewDimension)
-    if tPlayerDimensionMap[iOldDimension] then
-        tPlayerDimensionMap[iOldDimension][pPlayer] = nil
-    end
-
-    tPlayerDimensionMap[iNewDimension] = tPlayerDimensionMap[iNewDimension] or {}
-    tPlayerDimensionMap[iNewDimension][pPlayer] = pPlayer
-
-    if not tPendingSounds[iNewDimension] then return end
-    for _, eNetworkedSound in pairs(tPendingSounds[iNewDimension]) do
-        eNetworkedSound:AssignQueryPlayer()
-    end
-end
-Player.Subscribe("DimensionChange", dimensionChange)
-
-local function playerDestroy(pPlayer)
-    local iDimension = pPlayer:GetDimension()
-    if tPlayerDimensionMap[iDimension] then
-        tPlayerDimensionMap[iDimension][pPlayer] = nil
-    end
-end
-Player.Subscribe("Destroy", playerDestroy)
-
-for _, pPlayer in pairs(Player.GetPairs()) do
-    spawn(pPlayer)
-end
+NetworkedSound.Subscribe("Destroy", forgetSound)

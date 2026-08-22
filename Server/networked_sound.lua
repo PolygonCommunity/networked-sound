@@ -1,21 +1,37 @@
 -- Copyright (C) 2026 NegativeName
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
-function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy, iSoundType, fVolume, fPitch, fInnerRadius, fFalloffDistance, iAttenuationFunction, bKeepPlayingWhenSilent, iLoopMode, bAutoPlay)
-    self.Super:Constructor(tLocation, Rotator(), "nanos-world::SM_None", CollisionType.NoCollision)
+local NetVal = NetworkedSound.NetVal
+local StateIndex = NetworkedSound.StateIndex
+local SoundState = NetworkedSound.SoundState
 
-    self:SetValue("path", sAsset, true)
-    self:SetValue("is_2d_sound", bIs2DSound, true)
-    self:SetValue("auto_destroy", bAutoDestroy, true)
-    self:SetValue("sound_type", iSoundType, true)
-    self:SetVolume(fVolume)
-    self:SetPitch(fPitch)
-    self:SetInnerRadius(fInnerRadius)
-    self:SetFalloffDistance(fFalloffDistance)
-    self:SetValue("attenuation_function", iAttenuationFunction, true)
-    self:SetValue("keep_playing_when_silent", bKeepPlayingWhenSilent, true)
-    self:SetValue("loop_mode", iLoopMode, true)
-    self:SetValue("auto_play", bAutoPlay, true)
+-- `🔹 Server`<br>
+---@param self NetworkedSound
+---@param sKey string
+---@param xValue any
+---@param xDefault any
+local function setNonDefault(self, sKey, xValue, xDefault)
+    if xValue == nil or xValue == xDefault then return end
+
+    self:SetValue(sKey, xValue, true)
+end
+
+function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy, iSoundType, fVolume, fPitch, fInnerRadius, fFalloffDistance, iAttenuationFunction, bKeepPlayingWhenSilent, iLoopMode, bAutoPlay)
+    self.Super:Constructor(tLocation, Rotator(), "nanos-world::SM_None", CollisionType.NoCollision, SpawnMode.AfterConstructor)
+
+    self:SetValue(NetVal.path, sAsset, true)
+
+    setNonDefault(self, NetVal.is_2d_sound, bIs2DSound, false)
+    setNonDefault(self, NetVal.auto_destroy, bAutoDestroy, true)
+    setNonDefault(self, NetVal.sound_type, iSoundType, SoundType.SFX)
+    setNonDefault(self, NetVal.volume, fVolume, 1)
+    setNonDefault(self, NetVal.pitch, fPitch, 1)
+    setNonDefault(self, NetVal.inner_radius, fInnerRadius, 400)
+    setNonDefault(self, NetVal.falloff_distance, fFalloffDistance, 3600)
+    setNonDefault(self, NetVal.attenuation_function, iAttenuationFunction, AttenuationFunction.Linear)
+    setNonDefault(self, NetVal.keep_playing_when_silent, bKeepPlayingWhenSilent, false)
+    setNonDefault(self, NetVal.loop_mode, iLoopMode, SoundLoopMode.Default)
+    setNonDefault(self, NetVal.auto_play, bAutoPlay, true)
 
     local fCachedDuration = NetworkedSound.GetCachedDuration(sAsset)
     if fCachedDuration then
@@ -26,73 +42,94 @@ function NetworkedSound:Constructor(tLocation, sAsset, bIs2DSound, bAutoDestroy,
         self:Play()
     end
 
-    Timer.SetTimeout(self.AssignQueryPlayer, 0, self)
+    self:SetNetworkAuthorityAutoDistributed(true)
+    self:RequestDuration()
 end
 
 ---@param self NetworkedSound
 NetworkedSound.Subscribe("Destroy", function (self)
-    Console.Debug("[NetworkedSound] Destroyed sound instance for asset '" .. self:GetPath() .. "'.")
+    Console.Debug("[NetworkedSound] Destroyed sound instance for asset '" .. tostring(self:GetPath()) .. "'")
 end)
+
+-- `🔹 Server`<br>
+-- Sets the backend to use for this sound, if the client has it registered
+---@param sBackend string?
+function NetworkedSound:SetBackend(sBackend)
+    self:SetValue(NetVal.backend, sBackend, true)
+end
 
 -- `🔹 Server`<br>
 -- Sets the volume of the sound
 ---@param fVolume number
 function NetworkedSound:SetVolume(fVolume)
-    self:SetValue("volume", fVolume, true)
+    self:SetValue(NetVal.volume, fVolume, true)
 end
 
 -- `🔹 Server`<br>
 -- Sets the pitch of the sound
 ---@param fPitch number
 function NetworkedSound:SetPitch(fPitch)
-    self:SetValue("pitch", fPitch, true)
+    self:SetValue(NetVal.pitch, fPitch, true)
 end
 
 -- `🔹 Server`<br>
 -- If a 3D Sound, sets the distance within the volume is 100%
 ---@param fInnerRadius number
 function NetworkedSound:SetInnerRadius(fInnerRadius)
-    self:SetValue("inner_radius", fInnerRadius, true)
+    self:SetValue(NetVal.inner_radius, fInnerRadius, true)
 end
 
 -- `🔹 Server`<br>
 -- If a 3D Sound, sets the distance which the sound is inaudible
 ---@param fFalloffDistance number
 function NetworkedSound:SetFalloffDistance(fFalloffDistance)
-    self:SetValue("falloff_distance", fFalloffDistance, true)
+    self:SetValue(NetVal.falloff_distance, fFalloffDistance, true)
 end
 
 -- `🔹 Server`<br>
 -- Sets the low pass filter frequency
 ---@param fFrequency number
 function NetworkedSound:SetLowPassFilter(fFrequency)
-    self:SetValue("low_pass_filter", fFrequency, true)
+    self:SetValue(NetVal.low_pass_filter, fFrequency, true)
 end
 
-local function clearPlayValues(self)
-    if self:GetValue("play") then
-        self:SetValue("play", nil, true)
+-- `🔹 Server`<br>
+-- Returns the current playback position, in seconds
+---@return number
+function NetworkedSound:GetElapsedTime()
+    local tState = self:GetState()
+    if not tState then return 0 end
+
+    local fOffset = tState[StateIndex.Offset] or 0
+
+    local iMode = tState[StateIndex.Mode]
+    if iMode == SoundState.Stopped or iMode == SoundState.Paused then
+        return fOffset
     end
 
-    if self:GetValue("fade_in") then
-        self:SetValue("fade_in", nil, true)
-    end
+    return (Server.GetTime() - (tState[StateIndex.StartTime] or 0)) / 1000 + fOffset
+end
 
-    if self:GetValue("fade_out") then
-        self:SetValue("fade_out", nil, true)
-    end
+-- `🔹 Server`<br>
+---@param iMode SoundState
+---@param fOffset number?
+---@param xParam1 any
+---@param xParam2 any
+function NetworkedSound:SetState(iMode, fOffset, xParam1, xParam2)
+    self:SetValue(NetVal.state, {
+        iMode,
+        Server.GetTime(),
+        fOffset or 0,
+        xParam1,
+        xParam2,
+    }, true)
 end
 
 -- `🔹 Server`<br>
 -- Starts the sound
 ---@param fStartTime number?
 function NetworkedSound:Play(fStartTime)
-    clearPlayValues(self)
-
-    self:SetValue("start_time", Server.GetTime(), true)
-    self:SetValue("play", fStartTime or 0, true)
-    self:SetValue("is_playing", true)
-    self:SetValue("play_offset", fStartTime or 0)
+    self:SetState(SoundState.Playing, fStartTime or 0)
     self:UpdateLifeSpan()
 end
 
@@ -102,12 +139,7 @@ end
 ---@param fFadeVolumeLevel number?
 ---@param fStartTime number?
 function NetworkedSound:FadeIn(fFadeInDuration, fFadeVolumeLevel, fStartTime)
-    clearPlayValues(self)
-
-    self:SetValue("start_time", Server.GetTime(), true)
-    self:SetValue("fade_in", { fFadeInDuration, fFadeVolumeLevel or 1, fStartTime or 0 }, true)
-    self:SetValue("is_playing", true)
-    self:SetValue("play_offset", fStartTime or 0)
+    self:SetState(SoundState.FadingIn, fStartTime or 0, fFadeInDuration, fFadeVolumeLevel or 1)
     self:UpdateLifeSpan()
 end
 
@@ -117,9 +149,7 @@ end
 ---@param fFadeVolumeLevel number?
 ---@param bDestroyAfterFadeout boolean?
 function NetworkedSound:FadeOut(fFadeOutDuration, fFadeVolumeLevel, bDestroyAfterFadeout)
-    clearPlayValues(self)
-
-    self:SetValue("fade_out", { fFadeOutDuration, fFadeVolumeLevel or 0 }, true)
+    self:SetState(SoundState.FadingOut, self:GetElapsedTime(), fFadeOutDuration, fFadeVolumeLevel or 0)
 
     if bDestroyAfterFadeout then
         self:SetLifeSpan(fFadeOutDuration)
@@ -132,64 +162,62 @@ end
 function NetworkedSound:SetPaused(bPause)
     if type(bPause) == "nil" then bPause = true end
 
+    local fElapsedTime = self:GetElapsedTime()
+
     if bPause then
-        local fStartTime = self:GetStartTime() or 0
-        local fElapsedTime = (Server.GetTime() - fStartTime) / 1000
-        self:SetValue("paused_offset", fElapsedTime)
+        self:SetState(SoundState.Paused, fElapsedTime)
         self:SetLifeSpan(0)
-    else
-        local fPausedOffset = self:GetValue("paused_offset", 0)
-        self:SetValue("start_time", Server.GetTime() - (fPausedOffset * 1000), true)
-        self:SetValue("paused_offset", nil)
-        self:UpdateLifeSpan()
+        return
     end
 
-    self:SetValue("paused", bPause, true)
-    self:SetValue("is_playing", not bPause)
+    self:SetState(SoundState.Playing, fElapsedTime)
+    self:UpdateLifeSpan()
 end
 
 -- `🔹 Server`<br>
 -- Stops the sound
 function NetworkedSound:Stop()
+    self:SetState(SoundState.Stopped, 0)
     self:SetLifeSpan(0)
-    self:SetValue("is_playing", false)
-    clearPlayValues(self)
 end
 
 -- `🔹 Server`<br>
 -- Stops the sound after the provided delay
 ---@param fDelay number
 function NetworkedSound:StopDelayed(fDelay)
-    Timer.SetTimeout(function ()
-        self:Stop()
-    end, fDelay * 1000)
+    Timer.Bind(
+        Timer.SetTimeout(function ()
+            self:Stop()
+        end, fDelay * 1000),
+        self
+    )
 end
 
 -- `🔹 Server`<br>
 -- Sets the duration of the sound
 ---@param fDuration number
 function NetworkedSound:SetDuration(fDuration)
-    self:SetValue("duration", fDuration, true)
+    self:SetValue(NetVal.duration, fDuration, true)
 end
 
 -- `🔹 Server`<br>
 -- Updates the life span of the sound
 function NetworkedSound:UpdateLifeSpan()
+    if not self:IsAutoDestroy() then
+        self:SetLifeSpan(0)
+        return
+    end
+
     if self:GetLoopMode() == SoundLoopMode.Forever then
         self:SetLifeSpan(0)
         return
     end
 
+    local iMode = self:GetSoundState()
+    if iMode ~= SoundState.Playing and iMode ~= SoundState.FadingIn then return end
+
     local fDuration = self:GetDuration() or 20
-    if not fDuration then return end
+    local fRemainingTime = fDuration - self:GetElapsedTime()
 
-    local fPlayStartTime = self:GetStartTime()
-    if not fPlayStartTime then return end
-
-    local fStartTimeOffset = self:GetValue("play_offset", 0)
-    fDuration = fDuration - fStartTimeOffset
-
-    local fElapsedTime = (Server.GetTime() - fPlayStartTime) / 1000
-    local fRemainingTime = fDuration - fElapsedTime
-    self:SetLifeSpan(fRemainingTime)
+    self:SetLifeSpan(math.max(fRemainingTime, 0.01))
 end

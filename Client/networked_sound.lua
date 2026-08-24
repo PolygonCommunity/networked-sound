@@ -28,7 +28,7 @@ local function resolveOffset(tState)
     local fStartTime = tState[StateIndex.StartTime] or 0
     local fOffset = tState[StateIndex.Offset] or 0
 
-    return (Client.GetTime() - fStartTime) / 1000 + fOffset
+    return math.max(0, Client.GetTime() - fStartTime) / 1000 + fOffset
 end
 
 ---@type table<SoundState, fun(tBackend: NetworkedSoundBackend, self: NetworkedSound, tState: table)>

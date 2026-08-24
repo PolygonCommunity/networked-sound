@@ -1,32 +1,81 @@
 -- Copyright (C) 2026 NegativeName
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
+local fRebuildFade <const> = 0.08
+
+local tRenderedFlat = {}
+
+-- `🔸 Client`<br>
+---@param self NetworkedSound
+---@return boolean
+local function shouldRenderFlat(self)
+    if self:Is2D() then return true end
+
+    local pPlayer = Client.GetLocalPlayer()
+    if not pPlayer then return false end
+
+    local eAttachedTo = self:GetAttachedTo()
+    return eAttachedTo ~= nil and eAttachedTo == pPlayer:GetControlledCharacter()
+end
+
+-- `🔸 Client`<br>
+---@param self NetworkedSound
+---@return Sound
+local function createSound(self)
+    local bFlat = shouldRenderFlat(self)
+    tRenderedFlat[self] = bFlat
+
+    local eSound = Sound(
+        self:GetLocation(),
+        self:GetPath(),
+        bFlat,
+        false,
+        self:GetSoundType(),
+        self:GetVolume(),
+        self:GetPitch(),
+        self:GetInnerRadius(),
+        self:GetFalloffDistance(),
+        self:GetAttenuationFunction(),
+        self:KeepPlayingWhenSilent(),
+        self:GetLoopMode(),
+        false
+    )
+
+    eSound:SetLowPassFilter(self:GetLowPassFilter())
+
+    if not bFlat then
+        eSound:AttachTo(self, AttachmentRule.SnapToTarget)
+    end
+
+    self:SetBackendData(eSound)
+    return eSound
+end
+
+-- `🔸 Client`<br>
+---@param self NetworkedSound
+---@return Sound, boolean
+local function ensureRenderMode(self)
+    local eSound = self:GetBackendData()
+
+    if tRenderedFlat[self] == shouldRenderFlat(self) then
+        return eSound, false
+    end
+
+    if eSound and eSound:IsValid() then
+        eSound:FadeOut(fRebuildFade, 0, true)
+    end
+
+    return createSound(self), true
+end
+
 ---@type NetworkedSoundBackend
 local tBackend = {
     spawn = function (self)
-        local eSound = Sound(
-            self:GetLocation(),
-            self:GetPath(),
-            self:Is2D(),
-            false,
-            self:GetSoundType(),
-            self:GetVolume(),
-            self:GetPitch(),
-            self:GetInnerRadius(),
-            self:GetFalloffDistance(),
-            self:GetAttenuationFunction(),
-            self:KeepPlayingWhenSilent(),
-            self:GetLoopMode(),
-            false
-        )
-
-        eSound:SetLowPassFilter(self:GetLowPassFilter())
-        eSound:AttachTo(self, AttachmentRule.SnapToTarget)
-
-        self:SetBackendData(eSound)
+        createSound(self)
     end,
 
     destroy = function (self)
+        tRenderedFlat[self] = nil
         self:GetBackendData():Destroy()
     end,
 
@@ -36,8 +85,14 @@ local tBackend = {
     end,
 
     play = function (self, fOffset)
-        local eSound = self:GetBackendData()
+        local eSound, bRebuilt = ensureRenderMode(self)
         eSound:SetPaused(false)
+
+        if bRebuilt then
+            eSound:FadeIn(fRebuildFade, self:GetVolume(), fOffset)
+            return
+        end
+
         eSound:Play(fOffset)
     end,
 
@@ -46,7 +101,7 @@ local tBackend = {
     end,
 
     fade_in = function (self, fDuration, fVolumeLevel, fOffset)
-        local eSound = self:GetBackendData()
+        local eSound = ensureRenderMode(self)
         eSound:SetPaused(false)
         eSound:FadeIn(fDuration, fVolumeLevel, fOffset)
     end,
